@@ -1,0 +1,203 @@
+================================================================================
+SERVICEDESK INFORMATIEDOCUMENT — WACHTWOORDBELEID CONFIGURATIE
+Datum: [DATUM]
+Klant: [KLANTNAAM]
+Ticket: [TICKETNUMMER]
+================================================================================
+
+
+1. OVERZICHT — WAT IS ER GECONFIGUREERD?
+=========================================
+Er is een gelaagd wachtwoordbeleid ingericht gebaseerd op Microsoft Security Baselines
+en CIS Benchmark (v2.0.0) best practices. Het beleid bestaat uit drie lagen:
+
+- Laag 1: Default GPO Domain Password Policy (baseline voor alle gebruikers)
+- Laag 2: Fine-Grained Password Policies (FGPP) voor Admins, serviceaccounts en VIPs
+- Laag 3: Microsoft Entra Password Protection (blokkering van onveilige wachtwoorden)
+
+
+2. LAAG 1 — DEFAULT DOMAIN PASSWORD POLICY (ALLE GEBRUIKERS)
+==============================================================
+De volgende instellingen gelden voor ALLE domeingebruikers:
+
+- Minimale wachtwoordlengte: 14 tekens
+- Wachtwoordgeschiedenis: 24 (laatste 24 wachtwoorden mogen niet hergebruikt worden)
+- Maximale wachtwoordleeftijd: 365 dagen
+- Minimale wachtwoordleeftijd: 1 dag (voorkomt direct meerdere keren wijzigen)
+- Complexiteit: Ingeschakeld (minimaal 3 van 4: hoofdletters, kleine letters, cijfers, speciale tekens)
+- Omkeerbare versleuteling: Uitgeschakeld
+
+
+3. LAAG 1 — ACCOUNT VERGRENDELINGSBELEID
+==========================================
+- Vergrendelingsdrempel: 5 mislukte pogingen
+- Vergrendelingsduur: 15 minuten (account wordt automatisch ontgrendeld)
+- Observatievenster: 15 minuten (teller wordt na 15 minuten gereset)
+
+
+4. LAAG 2 — FINE-GRAINED PASSWORD POLICIES (FGPP)
+===================================================
+Specifieke groepen hebben een strenger wachtwoordbeleid:
+
+FGPP-High-Privileged-Admins (Precedence 10 — hoogste prioriteit):
+- Doelgroepen: Domain Admins, Enterprise Admins, Schema Admins, Account Operators,
+  Backup Operators, Server Operators, Print Operators, Administrators (built-in)
+- Minimale wachtwoordlengte: 20 tekens
+- Maximale wachtwoordleeftijd: 180 dagen
+- Vergrendelingsdrempel: 3 pogingen
+- Vergrendelingsduur: 15 minuten
+
+FGPP-ServiceAccounts (Precedence 20):
+- Doelgroep: SVC-PasswordPolicy-ServiceAccounts
+- Minimale wachtwoordlengte: 30 tekens
+- Maximale wachtwoordleeftijd: 365 dagen
+- Vergrendelingsdrempel: 0 (GEEN vergrendeling — voorkomt service-uitval)
+
+FGPP-VIPs (Precedence 30):
+- Doelgroep: SVC-PasswordPolicy-VIPs
+- Minimale wachtwoordlengte: 16 tekens
+- Maximale wachtwoordleeftijd: 180 dagen
+- Vergrendelingsdrempel: 5 pogingen
+- Vergrendelingsduur: 15 minuten
+
+
+5. LAAG 3 — MICROSOFT ENTRA PASSWORD PROTECTION
+=================================================
+- Entra Password Protection Proxy Service: geinstalleerd op member server(s)
+- Entra Password Protection DC Agent: geinstalleerd op ALLE Domain Controllers
+- Globale Banned Password List: Automatisch actief (beheerd door Microsoft)
+- Custom Banned Password List: [INGESCHAKELD / NIET INGESCHAKELD]
+- Modus: [AUDIT / ENFORCE]
+
+Werking:
+- Bij elke wachtwoordwijziging of -reset controleert de DC Agent het nieuwe wachtwoord
+  tegen de banned password list
+- Veelgebruikte en onveilige wachtwoorden (bijv. "Welkom123", "P@ssw0rd") worden geblokkeerd
+- Microsoft past automatisch normalisatie toe (bijv. @ = a, $ = s, 0 = o)
+
+
+6. ENTRA CONNECT SYNC
+=======================
+- Azure AD Connect V2 is geconfigureerd
+- Password Hash Sync (PHS): Ingeschakeld
+- Password Writeback: Ingeschakeld (voor Self-Service Password Reset)
+
+
+7. IMPACT OP GEBRUIKERS — WANNEER WORDT HET ACTIEF?
+=====================================================
+Niet alle instellingen hebben direct effect. Hieronder het overzicht:
+
+DIRECT ACTIEF (onmiddellijk na configuratie):
+- Accountvergrendeling (5 mislukte pogingen / 15 minuten)
+- FGPP vergrendelingsregels voor admins (3 pogingen / 15 minuten)
+
+PAS BIJ EERSTVOLGENDE WACHTWOORDWIJZIGING (NIET retroactief):
+- Minimale wachtwoordlengte (14 tekens voor standaard gebruikers)
+- Wachtwoordcomplexiteit (hoofdletters, kleine letters, cijfers, speciale tekens)
+- Wachtwoordgeschiedenis (24 vorige wachtwoorden)
+- Entra Password Protection banned password list (veelgebruikte wachtwoorden)
+- Alle FGPP wachtwoordregels (lengte, complexiteit, geschiedenis)
+
+BEREKEND VANAF LAATSTE WACHTWOORDWIJZIGING:
+- Maximale wachtwoordleeftijd (365 dagen voor standaard gebruikers)
+  Voorbeeld: als een gebruiker 300 dagen geleden zijn wachtwoord heeft gewijzigd,
+  moet hij over 65 dagen een nieuw wachtwoord instellen.
+
+BELANGRIJK VOOR SERVICEDESK:
+- Gebruikers met een kort of zwak huidig wachtwoord kunnen gewoon blijven inloggen
+  totdat hun wachtwoord verloopt of ze het zelf wijzigen.
+- Pas bij het instellen van een NIEUW wachtwoord worden alle regels gecontroleerd.
+- Het enige directe effect dat gebruikers kunnen merken is accountvergrendeling
+  bij te veel mislukte inlogpogingen.
+
+
+8. VEELVOORKOMENDE PROBLEMEN EN OPLOSSINGEN
+=============================================
+
+PROBLEEM: Gebruiker kan geen nieuw wachtwoord instellen
+- Oorzaak: Wachtwoord voldoet niet aan de minimale lengte (14 tekens) of complexiteitseisen
+- Oorzaak: Wachtwoord staat op de banned password list (te veelgebruikt)
+- Oorzaak: Wachtwoord komt overeen met een van de laatste 24 wachtwoorden
+- Oplossing: Adviseer de gebruiker een langere wachtzin te kiezen
+  (bijv. "MijnHondLooptInHetPark!" in plaats van "Welkom2026!")
+
+PROBLEEM: Account is vergrendeld
+- Oorzaak: 5 mislukte inlogpogingen binnen 15 minuten (of 3 voor admins)
+- Oplossing 1: Wacht 15 minuten — het account wordt automatisch ontgrendeld
+- Oplossing 2: Handmatig ontgrendelen via PowerShell:
+  Unlock-ADAccount -Identity "gebruikersnaam"
+- Oplossing 3: Handmatig ontgrendelen via Active Directory Users and Computers:
+  Gebruiker openen > tabblad Account > vinkje "Unlock account" aanvinken
+- Controleer de bron van de vergrendeling:
+  Event ID 4740 in de Security Event Log op de DC toont het bronapparaat
+
+PROBLEEM: Gebruiker kan niet inloggen na wachtwoordwijziging
+- Oorzaak: Oud wachtwoord staat nog cached op andere apparaten
+- Oplossing: Wachtwoord bijwerken op alle apparaten:
+  * Mobiele telefoon (Outlook, Teams, e-mail app)
+  * Tablet
+  * VPN-verbinding
+  * Wi-Fi (als 802.1x authenticatie wordt gebruikt)
+  * Opgeslagen wachtwoorden in browser
+
+PROBLEEM: Serviceaccount werkt niet meer na wachtwoordwijziging
+- Oorzaak: Wachtwoord van serviceaccount is gewijzigd maar niet bijgewerkt in de applicatie/service
+- Oplossing: Wachtwoord bijwerken op alle locaties waar het serviceaccount wordt gebruikt
+  (Windows Services, Scheduled Tasks, IIS Application Pools, etc.)
+- Let op: Serviceaccounts hebben GEEN lockout (threshold = 0) om service-uitval te voorkomen
+
+PROBLEEM: Wachtwoord geweigerd zonder duidelijke foutmelding
+- Oorzaak: Entra Password Protection heeft het wachtwoord geblokkeerd
+- Controle: Bekijk Event Log op de DC:
+  Log: Microsoft-AzureADPasswordProtection-DCAgent/Admin
+  * Event ID 30002 = Wachtwoord geweigerd (Audit modus — wachtwoord WEL toegestaan)
+  * Event ID 30003 = Wachtwoord geweigerd (Enforce modus — wachtwoord GEBLOKKEERD)
+  * Event ID 30005 = Wachtwoord geaccepteerd maar zou in Enforce modus geweigerd worden
+
+
+9. NUTTIGE POWERSHELL COMMANDO'S VOOR SERVICEDESK
+===================================================
+
+Account ontgrendelen:
+- Unlock-ADAccount -Identity "gebruikersnaam"
+
+Controleer of een account vergrendeld is:
+- Get-ADUser -Identity "gebruikersnaam" -Properties LockedOut | Select-Object Name, LockedOut
+
+Alle vergrendelde accounts opzoeken:
+- Search-ADAccount -LockedOut | Select-Object Name, SamAccountName
+
+Wachtwoord van gebruiker resetten:
+- Set-ADAccountPassword -Identity "gebruikersnaam" -Reset -NewPassword (ConvertTo-SecureString "TijdelijkWachtwoord1!" -AsPlainText -Force)
+- Set-ADUser -Identity "gebruikersnaam" -ChangePasswordAtLogon $true
+
+Controleer welk wachtwoordbeleid van toepassing is op een gebruiker:
+- Get-ADUserResultantPasswordPolicy -Identity "gebruikersnaam"
+  (Als dit niets teruggeeft, geldt het Default Domain Password Policy)
+
+Controleer wanneer het wachtwoord voor het laatst is gewijzigd:
+- Get-ADUser -Identity "gebruikersnaam" -Properties PasswordLastSet | Select-Object Name, PasswordLastSet
+
+Controleer de DC Agent status:
+- Test-AzureADPasswordProtectionDCAgentHealth -TestAll
+
+Controleer de Proxy status:
+- Test-AzureADPasswordProtectionProxyHealth -TestAll
+
+
+10. ESCALATIE
+=============
+Als bovenstaande stappen het probleem niet oplossen:
+
+- Controleer de Event Logs op de Domain Controller:
+  * Security Log: Event ID 4740 (account lockout), 4767 (account unlock)
+  * Application Log: Event ID 1101 (GPO policy applied)
+  * Entra PP DC Agent Log: Event IDs 10000-10016, 30002-30008
+  * Entra PP Proxy Log: Event IDs 20000-20006
+
+- Escaleer naar: [NAAM / TEAM VOOR ESCALATIE]
+- Verwijs naar de volledige implementatiedocumentatie: README.md
+
+================================================================================
+Einde document
+================================================================================

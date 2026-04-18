@@ -1,3 +1,5 @@
+[![Download Latest Release](https://img.shields.io/github/v/release/UniFy-Endpoint/ADDS-Password-Protection?label=Download%20Latest&style=for-the-badge&logo=github)](https://github.com/UniFy-Endpoint/ADDS-Password-Protection/releases/latest)
+
 # Active Directory Password Protection & Microsoft Entra Password Protection
 
 ## A Layered Security Implementation Guide
